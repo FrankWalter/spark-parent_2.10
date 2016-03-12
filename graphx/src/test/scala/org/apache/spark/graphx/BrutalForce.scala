@@ -4,9 +4,11 @@
   * */
 package org.apache.spark.graphx
 
+import org.apache.spark.graphx.lib.ShortestPaths
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 case class Point(x: Double, y: Double)
+case class PathRecord(distance: Double, preid: VertexId, prePathRecord: PathRecord)
 object BrutalForce {
 
   def main(args: Array[String]) {
@@ -26,40 +28,59 @@ object BrutalForce {
       sc.textFile("graphx/data/syntheticedges.txt")
         .map(line => line.split(","))
         .map(data => Edge(data(0).toLong, data(1).toLong, 0.0))
+    val sourceId: VertexId = 0
     val graph = Graph(points, edges)
-    graph.mapTriplets(
+      .mapTriplets(
       triplet =>
-        Edge(triplet.srcId, triplet.dstId,
           distanceBetweenTwoPoints(
-            triplet.srcAttr.asInstanceOf[Point], triplet.dstAttr.asInstanceOf[Point])))
-    println(graph.vertices.collect().mkString("\n"))
-//    print(x)
-//    graph.vertices.map(vertex => vertex._1).map(println)
-        // Parse the edge data which is already in userId -> userId format
-//    val followerGraph = GraphLoader.edgeListFile(sc, "graphx/data/followers.txt")
-//
-//    // Attach the user attributes
-//    val graph = followerGraph.outerJoinVertices(users) {
-//      case (uid, deg, Some(attrList)) => attrList
-//      // Some users may not have attributes so we set them as empty
-//      case (uid, deg, None) => Array.empty[String]
-//    }
-//
-//    // Restrict the graph to users with usernames and names
-//    val subgraph = graph.subgraph(vpred = (vid, attr) => attr.size == 2)
-//
-//    // Compute the PageRank
-//    val pagerankGraph = subgraph.pageRank(0.001)
-//
-//    // Get the attributes of the top pagerank users
-//    val userInfoWithPageRank = subgraph.outerJoinVertices(pagerankGraph.vertices) {
-//      case (uid, attrList, Some(pr)) => (pr, attrList.toList)
-//      case (uid, attrList, None) => (0.0, attrList.toList)
-//    }
-//
-//    println(userInfoWithPageRank.vertices.top(5)(Ordering.by(_._2._1)).mkString("\n"))
+            triplet.srcAttr.asInstanceOf[Point],
+            triplet.dstAttr.asInstanceOf[Point]))
+        .mapVertices((id, _) => if(id == sourceId) PathRecord(0.0, id, null)
+              else PathRecord(Double.PositiveInfinity, id, null))
+
+    val sssp = graph.pregel(PathRecord(Double.PositiveInfinity, -1, null))(
+      (id, dist, newDist) => {
+        if (dist.distance < newDist.distance) dist
+        else newDist
+      },
+      triplet => {
+        if (triplet.srcAttr.distance + triplet.attr < triplet.dstAttr.distance) {
+          Iterator((triplet.dstId,
+            PathRecord(triplet.srcAttr.distance + triplet.attr, triplet.srcId, triplet.srcAttr)))
+        }
+        else {
+          Iterator.empty
+        }
+      },
+      (a, b) => {
+        if (a.distance < b.distance) a
+        else b
+      }
+    )
+
+    val newsssp = sssp.
+      vertices.
+      filter((vertex) => {
+        if(vertex._1 % 9 == 8)  true
+      else false
+      })
+
+    val result = newsssp.
+      collect().reduce((a,b) => if(a._2.distance > b._2.distance) b else a)
+    println(result._1)
+    var tmp = result._2
+    while(tmp != null && tmp.preid > 0) {
+      println(tmp.preid)
+      tmp = tmp.prePathRecord
+    }
   }
 
   def distanceBetweenTwoPoints(p1: Point, p2: Point): Double =
-    math.sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y))
+    doubleFormatter(math.sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y)))
+
+
+  def doubleFormatter(input: Double): Double = {
+    if(input * 100 >= Double.PositiveInfinity || input * 100 <= Double.NegativeInfinity) input
+    else math.round(input * 100) / 100.00
+  }
 }
