@@ -2,9 +2,9 @@
 /**
   * Created by liuzhe on 2016/3/1.
   * */
-package org.apache.spark.graphx
+package org.apache.spark.graphx.OSR
 
-import org.apache.spark.graphx.lib.ShortestPaths
+import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 case class Point(x: Double, y: Double)
