@@ -19,7 +19,7 @@ object Lord {
         .map( parts =>
           Vertex(parts(0).toLong, (parts(1).toDouble, parts(2).toDouble), parts(3).toInt))
 
-    val partitioner = STRPartitioner(sliceNumPerDim = 2, sampleRate = 1, points)
+    val partitioner = STRPartitioner(expectedParNum = 4, sampleRate = 0.3, points)
 //    rePartitionVertexes(points, 3)
 //    def rePartitionVertexes(vertexes: RDD[Vertex], numForEachDimension: Int): Unit = {
 //

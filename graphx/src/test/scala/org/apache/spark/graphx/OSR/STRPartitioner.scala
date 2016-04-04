@@ -8,11 +8,11 @@ import org.apache.spark.Partitioner
 
 import scala.collection.mutable.ListBuffer
 object STRPartitioner {
-  def apply(sliceNumPerDim: Int,
+  def apply(expectedParNum: Int,
             sampleRate: Double,
             rdd: RDD[Vertex]): Unit= {
     val bound = computeBound(rdd)
-    val partitioner = new STRPartitioner(sliceNumPerDim, sampleRate, bound, rdd)
+    val partitioner = new STRPartitioner(expectedParNum, sampleRate, bound, rdd)
   }
   def computeBound(rdd: RDD[Vertex]): MBR = {
     val margin = 10
@@ -47,7 +47,7 @@ object STRPartitioner {
       (newBound.max._1 + margin, newBound.max._2 + margin))
   }
 }
-class STRPartitioner(sliceNumPerDim: Int,
+class STRPartitioner(expectedParNum: Int,
                      sampleRate: Double,
                      bound: MBR,
                      rdd: RDD[Vertex])
@@ -59,11 +59,13 @@ class STRPartitioner(sliceNumPerDim: Int,
   //    val k = key.asInstanceOf[Point]
   //  }
 
-  def groupVertexes(): Array[(MBR, Int)] = {
+  def groupVertexes(): List[(MBR, Int)] = {
     val sampled = rdd.sample(withReplacement = false,
       sampleRate, System.currentTimeMillis).collect()
-    val numPerCol : Int= sampled.length / sliceNumPerDim
-    val numPerCell: Int = numPerCol / sliceNumPerDim
+    val sliceNumX: Int = math.ceil(math.sqrt(expectedParNum)).toInt
+    val sliceNumY: Int = math.ceil(expectedParNum / sliceNumX.toDouble).toInt
+    val numPerCol : Int= math.ceil(sampled.length / sliceNumX.toDouble).toInt
+    val numPerCell: Int = math.ceil(numPerCol / sliceNumY.toDouble).toInt
     val colGroup = sampled.sortWith(_.coordinate._1 < _.coordinate._1 ).grouped(numPerCol).toArray
     var mbrList = ListBuffer[MBR]()
     for(i <- colGroup.indices) {
@@ -105,13 +107,12 @@ class STRPartitioner(sliceNumPerDim: Int,
         mbrList += new MBR((min_x, min_y), (max_x, max_y))
       }
     }
-    val mbrArray = mbrList.toList.zipWithIndex
+    mbrList.toList.zipWithIndex
 //    mbrArray.map(item => println(
 //      item._1.min.toString().replace("(", "").replace(")", "").replace(",", " ")
 //        + item._1.max.toString().replace("(", "").replace(")", "").replace(",", " ")))
-    mbrArray
   }
-  val mbrArray = groupVertexes()
-  //   val rt = RTree.buildFromMBRs(mbrArray, 100)
+  val mbrListWithIndex = groupVertexes()
+  val rt = RTree.buildFromMBRs(mbrListWithIndex, 2)
   val x = 0
 }
