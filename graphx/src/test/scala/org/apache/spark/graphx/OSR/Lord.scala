@@ -6,8 +6,8 @@ package org.apache.spark.graphx.OSR
 
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
-
-case class Vertex(id: Long, coordinate: (Double, Double), category: Int)
+case class Coordinate(x: Double, y: Double)
+case class Vertex(id: Long, coordinate: Coordinate, category: Int)
 object Lord {
   def main(args: Array[String]): Unit = {
     // Connect to the Spark cluster
@@ -17,7 +17,7 @@ object Lord {
       sc.textFile("graphx/data/syntheticpoints.txt")
         .map(line => line.split(","))
         .map( parts =>
-          Vertex(parts(0).toLong, (parts(1).toDouble, parts(2).toDouble), parts(3).toInt))
+          Vertex(parts(0).toLong, Coordinate(parts(1).toDouble, parts(2).toDouble), parts(3).toInt))
 
     val partitioner = STRPartitioner(expectedParNum = 4, sampleRate = 0.3, points)
 //    rePartitionVertexes(points, 3)

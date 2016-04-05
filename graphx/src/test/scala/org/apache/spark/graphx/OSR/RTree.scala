@@ -21,15 +21,17 @@ object RTree {
     }
     new RTree(tmpNodes.head)
   }
-  def MBRIntersectWithVertex(mbr: MBR, vertex: Vertex): Boolean = {
-    if (vertex.coordinate._1 >= mbr.min._1
-      && vertex.coordinate._2 >= mbr.min._2
-      && vertex.coordinate._1 <= mbr.max._1
-      && vertex.coordinate._2 <= mbr.max._2) true
+  def MBRIntersectWithCoordinate(mbr: MBR, coor: Coordinate): Boolean = {
+    if (coor.x >= mbr.min.x
+      && coor.y >= mbr.min.y
+      && coor.x < mbr.max.x
+      && coor.y < mbr.max.y) {
+      true
+    }
     else false
   }
   def MBRcenter(mbr: MBR): Point = {
-    new Point((mbr.min._1 + mbr.max._1) / 2, (mbr.min._2 + mbr.max._2) / 2)
+    new Point((mbr.min.x + mbr.max.x) / 2, (mbr.min.y + mbr.max.y) / 2)
   }
   def closureMBR(mbrs: List[MBR]): MBR = {
     val min = new Array[Double](2)
@@ -39,8 +41,8 @@ object RTree {
       (mbr, bound) => {
         if(mbr != null) {
           new MBR(
-            (math.min(mbr.min._1, bound._1._1), math.min(mbr.min._2, bound._1._2)),
-            (math.max(mbr.max._1, bound._2._1), math.max(mbr.max._2, bound._2._2)))
+            Coordinate(math.min(mbr.min.x, bound._1.x), math.min(mbr.min.y, bound._1.y)),
+            Coordinate(math.max(mbr.max.x, bound._2.x), math.max(mbr.max.y, bound._2.y)))
         }
         else new MBR(bound._1, bound._2)
       }, (left, right) => {
@@ -48,8 +50,8 @@ object RTree {
         else if (right == null) left
         else {
           new MBR(
-            (math.min(left.min._1, right.min._1), math.min(left.min._2, right.min._2)),
-            (math.max(left.max._1, right.max._1), math.max(left.max._2, right.max._2)))
+            Coordinate(math.min(left.min.x, right.min.x), math.min(left.min.y, right.min.y)),
+            Coordinate(math.max(left.max.x, right.max.x), math.max(left.max.y, right.max.y)))
         }
       })
     newBound
@@ -156,18 +158,25 @@ object RTree {
 
 class RTree(rootPara: RTreeNode) {
   val root: RTreeNode = rootPara
-  def pointPartitionQuery(vertex: Vertex): Int = {
-    def queue = new mutable.Queue[RTreeNode]()
+  def coorPartitionQuery(coor: Coordinate): Int = {
+    val queue = new mutable.Queue[RTreeNode]()
     queue.enqueue(root)
     var head: RTreeNode = null
     while (queue.nonEmpty) {
       head = queue.dequeue()
-      if (head.isInstanceOf[RTreeLeaf]) {
-        for (elem <- head.asInstanceOf[RTreeLeaf].childPartitions) {
-          if (RTree.MBRIntersectWithVertex(elem._1, vertex)) return elem._2
-        }
+      head match {
+        case leaf: RTreeLeaf =>
+          for (elem <- leaf.childPartitions) {
+            if (RTree.MBRIntersectWithCoordinate(elem._1, coor)) return elem._2
+          }
+        case node: RTreeNode =>
+          for (elem <- node.childNode) {
+            queue.enqueue(elem)
+          }
+        case _ => Unit
       }
     }
+    -1
   }
 }
 

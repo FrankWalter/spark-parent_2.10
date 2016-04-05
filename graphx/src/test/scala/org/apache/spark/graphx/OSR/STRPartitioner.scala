@@ -3,8 +3,9 @@
   * Created by liuzh on 2016/3/13.
   */
 package org.apache.spark.graphx.OSR
-import org.apache.spark.rdd.RDD
-import org.apache.spark.Partitioner
+import org.apache.spark.rdd.{ShuffledRDD, RDD}
+import org.apache.spark.{SparkConf, Partitioner}
+import org.apache.spark.sql.catalyst.expressions._
 
 import scala.collection.mutable.ListBuffer
 object STRPartitioner {
@@ -13,51 +14,53 @@ object STRPartitioner {
             rdd: RDD[Vertex]): Unit= {
     val bound = computeBound(rdd)
     val partitioner = new STRPartitioner(expectedParNum, sampleRate, bound, rdd)
+    rdd.partitionBy()
   }
   def computeBound(rdd: RDD[Vertex]): MBR = {
     val margin = 10
     val newBound = rdd
       .map(item => item.coordinate)
       .aggregate[MBR](null)(
-        (mbr, vertex) => {
-          if(mbr != null) {
-            new MBR(
-              (math.min(mbr.min._1, vertex._1), math.min(mbr.min._2, vertex._2)),
-              (math.max(mbr.max._1, vertex._1), math.max(mbr.max._2, vertex._2))
-            )
-          } else {
-            new MBR(
-              (vertex._1, vertex._2),
-              (vertex._1, vertex._2)
-            )
-          }
+      (mbr, coordinate) => {
+        if(mbr != null) {
+          new MBR(
+            Coordinate(math.min(mbr.min.x, coordinate.x), math.min(mbr.min.y, coordinate.y)),
+            Coordinate(math.max(mbr.max.x, coordinate.x), math.max(mbr.max.y, coordinate.y))
+          )
+        } else {
+          new MBR(
+            Coordinate(coordinate.x, coordinate.y),
+            Coordinate(coordinate.x, coordinate.y)
+          )
         }
-          , (left, right) => {
+      }
+      , (left, right) => {
         if(left == null) right
         else if(right == null) left
         else {
           new MBR(
-            (math.min(left.min._1, right.min._1), math.min(left.min._2, right.min._2)),
-            (math.max(left.max._1, right.max._1), math.max(left.max._2, right.max._2)))
+            Coordinate(math.min(left.min.x, right.min.x), math.min(left.min.y, right.min.y)),
+            Coordinate(math.max(left.max.x, right.max.x), math.max(left.max.y, right.max.y)))
         }
       }
     )
     new MBR(
-      (newBound.min._1 - margin, newBound.min._2 - margin),
-      (newBound.max._1 + margin, newBound.max._2 + margin))
+      Coordinate(newBound.min.x - margin, newBound.min.y - margin),
+      Coordinate(newBound.max.x + margin, newBound.max.y + margin))
   }
 }
 class STRPartitioner(expectedParNum: Int,
                      sampleRate: Double,
                      bound: MBR,
                      rdd: RDD[Vertex])
-//  extends Partitioner
+  extends Partitioner
 {
-  //  def numPartions: Int = math.pow(sliceNumPerDim, 2).asInstanceOf[Int]
-  //
-  //  def getPartition(key: Any): Int =  {
-  //    val k = key.asInstanceOf[Point]
-  //  }
+  def numPartitions: Int = mbrListWithIndex.length
+
+  def getPartition(key: Any): Int =  {
+    val k = key.asInstanceOf[Vertex]
+    rt.coorPartitionQuery(k.coordinate)
+  }
 
   def groupVertexes(): List[(MBR, Int)] = {
     val sampled = rdd.sample(withReplacement = false,
@@ -66,7 +69,7 @@ class STRPartitioner(expectedParNum: Int,
     val sliceNumY: Int = math.ceil(expectedParNum / sliceNumX.toDouble).toInt
     val numPerCol : Int= math.ceil(sampled.length / sliceNumX.toDouble).toInt
     val numPerCell: Int = math.ceil(numPerCol / sliceNumY.toDouble).toInt
-    val colGroup = sampled.sortWith(_.coordinate._1 < _.coordinate._1 ).grouped(numPerCol).toArray
+    val colGroup = sampled.sortWith(_.coordinate.x < _.coordinate.x ).grouped(numPerCol).toArray
     var mbrList = ListBuffer[MBR]()
     for(i <- colGroup.indices) {
       val colGroupLength = colGroup.length
@@ -75,44 +78,41 @@ class STRPartitioner(expectedParNum: Int,
       var max_x = 0.0
       var max_y = 0.0
       if(i == 0 && i != colGroupLength - 1) {
-        min_x = bound.min._1
-        max_x = colGroup(i + 1).head.coordinate._1
+        min_x = bound.min.x
+        max_x = colGroup(i + 1).head.coordinate.x
       } else if(i == 0 && i == colGroupLength - 1) {
-        min_x = bound.min._1
-        max_x = bound.max._1
+        min_x = bound.min.x
+        max_x = bound.max.x
       } else if(i != 0 && i != colGroupLength - 1) {
-        min_x = colGroup(i).head.coordinate._1
-        val max_x = colGroup(i + 1).head.coordinate._1
+        min_x = colGroup(i).head.coordinate.x
+        val max_x = colGroup(i + 1).head.coordinate.x
       } else if( i != 0 && i == colGroupLength - 1) {
-        min_x = colGroup(i).head.coordinate._1
-        max_x = bound.max._1
+        min_x = colGroup(i).head.coordinate.x
+        max_x = bound.max.x
       }
       val cellGroup =
-        colGroup(i).sortWith(_.coordinate._2 < _.coordinate._2).grouped(numPerCell).toArray
+        colGroup(i).sortWith(_.coordinate.y < _.coordinate.y).grouped(numPerCell).toArray
       val cellGroupLength = cellGroup.length
       for( j <- cellGroup.indices) {
         if(j == 0 && j != cellGroupLength - 1) {
-          min_y = bound.min._2
-          max_y = cellGroup(j + 1).head.coordinate._2
+          min_y = bound.min.y
+          max_y = cellGroup(j + 1).head.coordinate.y
         } else if(j == 0 && j == cellGroupLength - 1) {
-          min_y = bound.min._2
-          max_y = bound.max._2
+          min_y = bound.min.y
+          max_y = bound.max.y
         } else if(j != 0 && j != cellGroupLength - 1) {
-          min_y = cellGroup(j).head.coordinate._2
-          max_y = cellGroup(j + 1).head.coordinate._2
+          min_y = cellGroup(j).head.coordinate.y
+          max_y = cellGroup(j + 1).head.coordinate.y
         } else if(j != 0 && j == cellGroupLength - 1) {
-          min_y = cellGroup(j).head.coordinate._2
-          max_y = bound.max._2
+          min_y = cellGroup(j).head.coordinate.y
+          max_y = bound.max.y
         }
-        mbrList += new MBR((min_x, min_y), (max_x, max_y))
+        mbrList += new MBR(Coordinate(min_x, min_y), Coordinate(max_x, max_y))
       }
     }
     mbrList.toList.zipWithIndex
-//    mbrArray.map(item => println(
-//      item._1.min.toString().replace("(", "").replace(")", "").replace(",", " ")
-//        + item._1.max.toString().replace("(", "").replace(")", "").replace(",", " ")))
   }
   val mbrListWithIndex = groupVertexes()
   val rt = RTree.buildFromMBRs(mbrListWithIndex, 2)
-  val x = 0
+  val x = rt.coorPartitionQuery(Coordinate(10, 60))
 }
