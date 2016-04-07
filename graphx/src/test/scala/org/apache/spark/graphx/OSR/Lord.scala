@@ -5,11 +5,7 @@
 package org.apache.spark.graphx.OSR
 
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{SparkConf, SparkContext}
-case class Coordinate(x: Double, y: Double)
-case class Vertex(id: Long, coordinate: Coordinate, category: Int)
-object Lord {
-  def main(args: Array[String]): Unit = {
+import org.apache.spark.{SparkConf, SparkContext} case class Coordinate(x: Double, y: Double) extends Serializable case class Vertex(id: Long, coordinate: Coordinate, category: Int) extends Serializable object Lord extends Serializable{ def main(args: Array[String]): Unit = {
     // Connect to the Spark cluster
     val sparkConf = new SparkConf().setAppName("BrutalForce").setMaster("local[4]")
     val sc = new SparkContext(sparkConf)
@@ -19,7 +15,12 @@ object Lord {
         .map( parts =>
           Vertex(parts(0).toLong, Coordinate(parts(1).toDouble, parts(2).toDouble), parts(3).toInt))
 
-    val partitioner = STRPartitioner(expectedParNum = 4, sampleRate = 0.3, points)
+    val (newPartition, mbrListWithIndex) =
+      STRPartitioner(expectedParNum = 4, sampleRate = 0.3, points)
+    val Dpartition = newPartition.map(
+
+    )
+    val x = 0
 //    rePartitionVertexes(points, 3)
 //    def rePartitionVertexes(vertexes: RDD[Vertex], numForEachDimension: Int): Unit = {
 //

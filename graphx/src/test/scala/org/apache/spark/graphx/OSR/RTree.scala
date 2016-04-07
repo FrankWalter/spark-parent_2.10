@@ -7,7 +7,7 @@ package org.apache.spark.graphx.OSR
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
 
-object RTree {
+object RTree extends Serializable{
   def buildFromMBRs(mbrs: List[(MBR, Int)], expChildNum: Int): RTree = {
     val sliceNumX: Int = math.ceil(math.sqrt(expChildNum)).toInt
     val sliceNumY: Int = math.ceil(expChildNum / sliceNumX.toDouble).toInt
@@ -156,7 +156,7 @@ object RTree {
   }
 }
 
-class RTree(rootPara: RTreeNode) {
+class RTree(rootPara: RTreeNode) extends Serializable{
   val root: RTreeNode = rootPara
   def coorPartitionQuery(coor: Coordinate): Int = {
     val queue = new mutable.Queue[RTreeNode]()
@@ -180,13 +180,13 @@ class RTree(rootPara: RTreeNode) {
   }
 }
 
-class RTreeNode(childPara: List[RTreeNode]) {
+class RTreeNode(childPara: List[RTreeNode]) extends Serializable{
   val childNode: List[RTreeNode] = childPara
   val bound: MBR = RTree.closureMBR(childNode.map(node => node.bound))
 }
 
 class RTreeLeaf(childPara: List[(MBR, Int)])
-  extends RTreeNode(Nil) {
+  extends RTreeNode(Nil) with Serializable{
   val childPartitions: List[(MBR, Int)] = childPara
   override val bound = RTree.closureMBR(childPartitions.map(partition => partition._1))
 }
