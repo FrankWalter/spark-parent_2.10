@@ -11,7 +11,7 @@ import scala.collection.mutable.ListBuffer
 object STRPartitioner extends Serializable{
   def apply(expectedParNum: Int,
             sampleRate: Double,
-            originRdd: RDD[Vertex]): (RDD[(Coordinate, Vertex)], List[(MBR, Int)]) = {
+            originRdd: RDD[Vertex]): (RDD[(Coordinate, Vertex)], List[(MBR, Int)], RTree) = {
     val bound = computeBound(originRdd)
     val rdd = originRdd.mapPartitions(
       iter => iter.map(row => {
@@ -24,7 +24,7 @@ object STRPartitioner extends Serializable{
     val partitioner = new STRPartitioner(expectedParNum, sampleRate, bound, rdd)
     val shuffled = new ShuffledRDD[Coordinate, Vertex, Vertex](rdd, partitioner)
     shuffled.setSerializer(new KryoSerializer(new SparkConf(false)))
-    (shuffled, partitioner.mbrListWithIndex)
+    (shuffled, partitioner.mbrListWithIndex, partitioner.rt)
   }
   def computeBound(rdd: RDD[Vertex]): MBR = {
     val margin = 10
