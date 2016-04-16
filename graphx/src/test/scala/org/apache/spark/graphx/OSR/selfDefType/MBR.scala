@@ -2,7 +2,7 @@
 /**
   * Created by liuzh on 2016/3/26.
   */
-package org.apache.spark.graphx.OSR
+package org.apache.spark.graphx.OSR.selfDefType
 
 case class MBR(min: Coordinate, max: Coordinate) extends Serializable {
   val center: Coordinate = Coordinate((min.x + max.x) / 2, (min.y + max.y) / 2)

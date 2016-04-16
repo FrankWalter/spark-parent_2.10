@@ -3,6 +3,8 @@
   * Created by liuzh on 2016/3/13.
   */
 package org.apache.spark.graphx.OSR
+
+import org.apache.spark.graphx.OSR.selfDefType.{RTree, MBR, Coordinate, Vertex}
 import org.apache.spark.rdd.{ShuffledRDD, RDD}
 import org.apache.spark.serializer.KryoSerializer
 import org.apache.spark.{SparkConf, Partitioner}

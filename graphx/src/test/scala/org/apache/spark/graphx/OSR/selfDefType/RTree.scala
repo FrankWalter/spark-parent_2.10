@@ -2,7 +2,7 @@
 /**
   * Created by liuzh on 2016/3/27.
   */
-package org.apache.spark.graphx.OSR
+package org.apache.spark.graphx.OSR.selfDefType
 
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
