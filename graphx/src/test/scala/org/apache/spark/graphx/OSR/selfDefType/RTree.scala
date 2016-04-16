@@ -30,8 +30,8 @@ object RTree extends Serializable{
     }
     else false
   }
-  def MBRcenter(mbr: MBR): Point = {
-    new Point((mbr.min.x + mbr.max.x) / 2, (mbr.min.y + mbr.max.y) / 2)
+  def MBRcenter(mbr: MBR): Coordinate = {
+    Coordinate((mbr.min.x + mbr.max.x) / 2, (mbr.min.y + mbr.max.y) / 2)
   }
   def closureMBR(mbrs: List[MBR]): MBR = {
     val min = new Array[Double](2)

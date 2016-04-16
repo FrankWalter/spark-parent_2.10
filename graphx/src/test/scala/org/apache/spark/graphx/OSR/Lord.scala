@@ -4,13 +4,14 @@
   */
 package org.apache.spark.graphx.OSR
 
+import org.apache.spark.graphx.OSR.selfDefType.{PartialRoute, Coordinate, Vertex}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
 
-import scala.collection.mutable.ListBuffer
+import scala.collection.mutable.{ArrayBuffer, ListBuffer}
 
 
-object Load {
+object Lord {
   def main(args: Array[String]): Unit = {
     // Connect to the Spark cluster and access data
     val sparkConf = new SparkConf().setAppName("BrutalForce").setMaster("local[4]")
@@ -44,22 +45,55 @@ object Load {
     }
     // Code for Lord Algorithm
     val Tc: Double = greedyDistance
-    val Tv: Double = greedyDistance
-    val S: RDD[ListBuffer[Vertex]] =
+    var Tv: Double = greedyDistance
+    var S: RDD[PartialRoute] =
       vertexes.filter(vertex => vertex.category == categoryNum)
-      .filter(vertex =>
-      vertex.distanceWithOtherVertex(startPoint) <= Tv
-    ).map(vertex => {
-      new ListBuffer[Vertex]() += vertex
-    })
-    for(j <- 1 until categoryNum) {
+        .filter(vertex =>
+          vertex.distanceWithOtherVertex(startPoint) <= Tv
+        ).map(vertex =>
+        PartialRoute(new ArrayBuffer[Vertex]() += vertex)
+      )
+
+    for (j <- 1 until categoryNum) {
       val i = categoryNum - j
-      vertexes.filter(vertex => vertex.category == i)
+      val qSet = vertexes.filter(vertex => vertex.category == i)
         .filter(vertex => vertex.distanceWithOtherVertex(startPoint) <= Tv)
-      val Siter = S.collect().iterator
-      while (Siter.hasNext) {
-        val R = Siter.next()
+      val SArray = S.collect()
+
+      S = qSet.map(q => {
+        val SIter = SArray.iterator
+        var S2 = PartialRoute()
+        while (SIter.hasNext) {
+          val R: PartialRoute = SIter.next()
+          if (startPoint.distanceWithOtherVertex(q) +
+            q.distanceWithOtherVertex(R.vertexList.head) +
+            R.routeLength <= Tc) {
+            if (S2 == null) S2 = PartialRoute(q, R)
+            else if (q.distanceWithOtherVertex(R.vertexList.head) +
+              R.routeLength < S2.routeLength) {
+              S2 = PartialRoute(q, R)
+            }
+          }
+        }
+        S2
+      }).filter(pr => pr != null)
+
+      val tmp = S.collect()
+
+      Tv = Tc - S.reduce((pr1, pr2) => {
+        if (pr1.routeLength > pr2.routeLength) pr2
+        else pr1
       }
+      ).routeLength
     }
+
+
+    val resultRoute: PartialRoute = S.reduce((pr1, pr2) => {
+      if (pr1.routeLength > pr2.routeLength) pr2
+      else pr1
+    }
+    )
+
+    println(resultRoute.vertexList.toString)
   }
 }
