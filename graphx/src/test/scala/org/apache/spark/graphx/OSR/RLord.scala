@@ -4,9 +4,8 @@
   */
 package org.apache.spark.graphx.OSR
 
-import java.io.{ObjectOutputStream, IOException}
 
-import org.apache.spark.graphx.OSR.selfDefType.{Coordinate, Vertex}
+import org.apache.spark.graphx.OSR.selfDefType.{PartialRoute, Coordinate, Vertex}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{Partition, SparkConf, SparkContext}
 
@@ -48,71 +47,65 @@ object RLord extends Serializable {
       result
     }
 
-    // Code for nested loop computation
+    // Code for RLord
     val (newPartition, mbrListWithIndex, rt) =
       STRPartitioner(expectedParNum = 4, sampleRate = 0.3, vertexes)
     val broadCastRtree = sc.broadcast(rt)
 
-    val S: ArrayBuffer[ArrayBuffer[Vertex]] = new ArrayBuffer[ArrayBuffer[Vertex]]()
     val Tc: Double = greedyDistance
-    val Tv: Double = greedyDistance
+    var Tv: Double = greedyDistance
+    var S: RDD[PartialRoute] =
+      vertexes.mapPartitionsWithIndex((index, iter) =>
+        if (broadCastRtree.value.coorPartitionRangeQuery(startPoint.coordinate, index, Tv)) iter
+        else {
+          null
+        }
+      ).filter(vertex => vertex.category == categoryNum)
+        .map(vertex =>
+          PartialRoute(new ArrayBuffer[Vertex]() += vertex)
+        )
 
+    for (j <- 1 until categoryNum) {
+      val i = categoryNum - j
+      val qSet = vertexes.mapPartitionsWithIndex((index, iter) =>
+        if (broadCastRtree.value.coorPartitionRangeQuery(startPoint.coordinate, index, Tv)) iter
+        else {
+          null
+        }
+      ).filter(vertex => vertex.category == i)
+      val SArray = S.collect()
+      S = qSet.map(q => {
+        val SIter = SArray.iterator
+        var S2 = PartialRoute()
+        while (SIter.hasNext) {
+          val R: PartialRoute = SIter.next()
+          if (startPoint.distanceWithOtherVertex(q) +
+            q.distanceWithOtherVertex(R.vertexList.head) +
+            R.routeLength <= Tc) {
+            if (S2 == null) S2 = PartialRoute(q, R)
+            else if (q.distanceWithOtherVertex(R.vertexList.head) +
+              R.routeLength < S2.routeLength) {
+              S2 = PartialRoute(q, R)
+            }
+          }
+        }
+        S2
+      }).filter(pr => pr != null)
 
-    // class CartesianPartition(
-    //                          idx: Int,
-    //                          @transient rdd1: RDD[_],
-    //                          @transient rdd2: RDD[_],
-    //                          s1Index: Int,
-    //                          s2Index: Int
-    //                        ) extends Partition {
-    //  var s1 = rdd1.partitions(s1Index)
-    //  var s2 = rdd2.partitions(s2Index)
-    //  override val index: Int = idx
-    //
-    //  @throws(classOf[IOException])
-    //  private def writeObject(oos: ObjectOutputStream): Unit = selfDefType.tryOrIOException {
-    //    // Update the reference to parent split at the time of task serialization
-    //    s1 = rdd1.partitions(s1Index)
-    //    s2 = rdd2.partitions(s2Index)
-    //    oos.defaultWriteObject()
-    //  }
-    //}
-//    def getCartesianPartitionArray(
-    //                                    rdd1: RDD[(Coordinate, Vertex)],
-    //                                    rdd2: RDD[(Coordinate, Vertex)],
-    //                                    mbrListWithIndex: List[(MBR, Int)],
-    //                                    benchMark: Double): Array[Partition] = {
-    //      // create the cross product split
-    //      val array = new Array[Partition](rdd1.partitions.length * rdd1.partitions.length)
-    //      for (s1 <- rdd1.partitions; s2 <- rdd2.partitions) {
-    //        val idx = s1.index * rdd2.partitions.length + s2.index
-    //        val mbr1 = mbrListWithIndex(s1.index)._1
-    //        val mbr2 = mbrListWithIndex(s2.index)._1
-    //        array(idx) = {
-    //          if (mbr1.minDistanceWithOtherMBR(mbr2) <= benchMark) {
-    //            new CartesianPartition(idx, rdd1, rdd2, s1.index, s2.index)
-    //          }
-    //          else null
-    //        }
-    //      }
-    //      array
-    //    }
-    //    val cartesianPartitionRDD =
-    //    for( part <- cartesianPartitionArray) {
-    //      part.asInstanceOf[CartesianPartition].hashCode()
-    //    }
-    //    val tmp = newPartition.mapPartitionsWithIndex((index, part) => {
-    //      while(part.hasNext) {
-    //        val data = part.next()
-    //        println("index " + index + data.toString())
-    //      }
-    //      part
-    //    }
-    //    ).collect()
-    //    val x = 0
-    //    val cartesianPartitionArray = getCartesianPartitionArray(newPartition,
-    //      newPartition,
-    //      mbrListWithIndex,
-    //      greedyDistance)
+      Tv = Tc - S.reduce((pr1, pr2) => {
+        if (pr1.routeLength > pr2.routeLength) pr2
+        else pr1
+      }
+      ).routeLength
+    }
+
+    val resultRoute: PartialRoute = S.reduce((pr1, pr2) => {
+      if (pr1.routeLength > pr2.routeLength) pr2
+      else pr1
+    }
+    )
+
+    println(resultRoute.vertexList.toString)
+
   }
 }

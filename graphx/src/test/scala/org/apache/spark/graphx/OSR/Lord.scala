@@ -78,8 +78,6 @@ object Lord {
         S2
       }).filter(pr => pr != null)
 
-      val tmp = S.collect()
-
       Tv = Tc - S.reduce((pr1, pr2) => {
         if (pr1.routeLength > pr2.routeLength) pr2
         else pr1

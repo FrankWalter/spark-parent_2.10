@@ -178,6 +178,30 @@ class RTree(rootPara: RTreeNode) extends Serializable{
     }
     -1
   }
+  def getMBRByIndex(index: Int): MBR = {
+    val queue = new mutable.Queue[RTreeNode]()
+    queue.enqueue(root)
+    var head: RTreeNode = null
+    while (queue.nonEmpty) {
+      head = queue.dequeue()
+      head match {
+        case leaf: RTreeLeaf =>
+          for (elem <- leaf.childPartitions) {
+            if (elem._2 == index) return elem._1
+          }
+        case node: RTreeNode =>
+          for (elem <- node.childNode) {
+            queue.enqueue(elem)
+          }
+        case _ => Unit
+      }
+    }
+    null
+  }
+  def coorPartitionRangeQuery(coor: Coordinate, partIndex: Int, range: Double): Boolean = {
+    val mbr = getMBRByIndex(partIndex)
+    mbr.minDistanceWithCoordinate(coor) <= range
+  }
 }
 
 class RTreeNode(childPara: List[RTreeNode]) extends Serializable{

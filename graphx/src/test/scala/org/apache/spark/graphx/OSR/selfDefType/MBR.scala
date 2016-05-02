@@ -9,6 +9,45 @@ case class MBR(min: Coordinate, max: Coordinate) extends Serializable {
   val width: Double = max.x - min.x
   val height: Double = max.y - min.y
 
+  def minDistanceWithCoordinate(coor: Coordinate): Double = {
+    if (coor.x <= this.max.x && coor.x >= this.min.x
+      && coor.y <= this.max.y && coor.y >= this.min.y) {
+      0.0
+    } else {
+      if (coor.x <= this.min.x) {
+        // Left side
+        if (coor.y <= this.min.y) {
+          // Down side
+          coor.distanceWithOtherCoordinate(this.min)
+        } else if (coor.y >= this.max.y) {
+          // Up side
+          coor.distanceWithOtherCoordinate(Coordinate(this.min.x, this.max.y))
+        } else {
+          // Middle
+          this.min.x - coor.x
+        }
+      } else if (coor.x >= this.max.x){
+        // Right side
+        if (coor.y <= this.min.y) {
+          // Down side
+          coor.distanceWithOtherCoordinate(Coordinate(this.max.x, this.min.y))
+        } else if (coor.y >= this.max.y) {
+          // Up side
+          coor.distanceWithOtherCoordinate(this.max)
+        } else {
+          // Middle
+          coor.x - this.max.x
+        }
+      } else {
+        if (coor.y >= this.max.y) {
+          coor.y - this.max.y
+        } else {
+          this.min.y - coor.y
+        }
+      }
+    }
+
+  }
   def minDistanceWithOtherMBR(other: MBR): Double = {
     if (this.isIntersectWithOtherMBR(other)) 0.0
     else if (this.max.x <= other.min.x) {
