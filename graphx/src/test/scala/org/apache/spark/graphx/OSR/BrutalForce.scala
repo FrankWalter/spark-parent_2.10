@@ -38,6 +38,7 @@ object BrutalForce {
         .mapVertices((id, _) => if(id == sourceId) PathRecord(0.0, id, null)
               else PathRecord(Double.PositiveInfinity, id, null))
 
+    val vs = graph.vertices.collect()
     val sssp = graph.pregel(PathRecord(Double.PositiveInfinity, -1, null))(
       (id, dist, newDist) => {
         if (dist.distance < newDist.distance) dist

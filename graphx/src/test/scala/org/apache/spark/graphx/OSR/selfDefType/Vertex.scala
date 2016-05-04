@@ -16,3 +16,6 @@ case class Vertex(id: Long, coordinate: Coordinate, category: Int) extends Seria
   def distanceWithOtherVertex(other: Vertex): Double =
     this.coordinate.distanceWithOtherCoordinate(other.coordinate)
 }
+
+case class VertexMS(id: Long, category: Int, preId: Long, distance: Int, active: Boolean)
+  extends Serializable
