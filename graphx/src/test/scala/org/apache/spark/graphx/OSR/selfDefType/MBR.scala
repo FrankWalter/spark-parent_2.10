@@ -9,6 +9,10 @@ case class MBR(min: Coordinate, max: Coordinate) extends Serializable {
   val width: Double = max.x - min.x
   val height: Double = max.y - min.y
 
+  def extendMBRWithCoordinate(coor: Coordinate): MBR = {
+    MBR(Coordinate(math.min(this.min.x, coor.x), math.min(this.min.y, coor.y)),
+      Coordinate(math.max(this.max.x, coor.x), math.max(this.max.y, coor.y)))
+  }
   def minDistanceWithCoordinate(coor: Coordinate): Double = {
     if (coor.x <= this.max.x && coor.x >= this.min.x
       && coor.y <= this.max.y && coor.y >= this.min.y) {
@@ -100,4 +104,5 @@ case class MBR(min: Coordinate, max: Coordinate) extends Serializable {
     }
     else false
   }
+
 }

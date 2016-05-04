@@ -73,6 +73,7 @@ object Lord {
               R.routeLength < S2.routeLength) {
               S2 = PartialRoute(q, R)
             }
+            println("now q is" + q.id + "and S2 is " + S2.vertexList.map(v => v.id).toString)
           }
         }
         S2
@@ -86,12 +87,31 @@ object Lord {
     }
 
 
-    val resultRoute: PartialRoute = S.reduce((pr1, pr2) => {
+    val resultRoute: PartialRoute = S.map(pr => PartialRoute(startPoint, pr)).reduce((pr1, pr2) => {
       if (pr1.routeLength > pr2.routeLength) pr2
       else pr1
     }
     )
 
-    println(resultRoute.vertexList.toString)
+    val result2buffer = new ArrayBuffer[Vertex]
+    for (i <- Array(44,
+      88,
+      240,
+      77,
+      58,
+      39,
+      29,
+      82,
+      0
+    )) {
+      result2buffer += vertexes.filter(vertex => vertex.id == i).collect().head
+    }
+    val result2 = PartialRoute(result2buffer)
+
+    println("the vertex list of Lord is " + resultRoute.vertexList.map(v => v.id).toString)
+    println("the route length of Lord is " + resultRoute.routeLength)
+
+    println("the vertex list of brutal force is " + result2.vertexList.map(v => v.id).toString)
+    println("the route length of brutal force is " + result2.routeLength)
   }
 }

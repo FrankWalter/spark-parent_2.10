@@ -3,12 +3,9 @@
   * Created by liuzh on 2016/3/12.
   */
 package org.apache.spark.graphx.OSR
-
-
-import org.apache.spark.graphx.OSR.selfDefType.{PartialRoute, Coordinate, Vertex}
+import org.apache.spark.graphx.OSR.selfDefType.{MBR, PartialRoute, Coordinate, Vertex}
 import org.apache.spark.rdd.RDD
-import org.apache.spark.{Partition, SparkConf, SparkContext}
-
+import org.apache.spark.{SparkConf, SparkContext}
 import scala.collection.mutable.ArrayBuffer
 
 
@@ -55,25 +52,30 @@ object RLord extends Serializable {
     val Tc: Double = greedyDistance
     var Tv: Double = greedyDistance
     var S: RDD[PartialRoute] =
-      vertexes.mapPartitionsWithIndex((index, iter) =>
+      newPartition.mapPartitionsWithIndex((index, iter) =>
         if (broadCastRtree.value.coorPartitionRangeQuery(startPoint.coordinate, index, Tv)) iter
         else {
           null
         }
-      ).filter(vertex => vertex.category == categoryNum)
-        .map(vertex =>
-          PartialRoute(new ArrayBuffer[Vertex]() += vertex)
+      ).filter(item => item._2.category == categoryNum)
+        .map(item =>
+          PartialRoute(new ArrayBuffer[Vertex]() += item._2)
         )
 
     for (j <- 1 until categoryNum) {
       val i = categoryNum - j
-      val qSet = vertexes.mapPartitionsWithIndex((index, iter) =>
-        if (broadCastRtree.value.coorPartitionRangeQuery(startPoint.coordinate, index, Tv)) iter
+      val SArray = S.collect()
+      // println("preCount" + vertexes.collect().length)
+      val qSet = newPartition.mapPartitionsWithIndex((index, iter) =>
+        if (broadCastRtree.value.coorPartitionRangeQuery(startPoint.coordinate, index, Tv)) {
+          iter.toArray.map(item => item._2).toIterator
+        }
         else {
-          null
+          Iterator.empty
         }
       ).filter(vertex => vertex.category == i)
-      val SArray = S.collect()
+        .filter(vertex => vertex.distanceWithOtherVertex(startPoint) <= Tv)
+      // println("afterCount" + qSet.collect().length)
       S = qSet.map(q => {
         val SIter = SArray.iterator
         var S2 = PartialRoute()
@@ -99,13 +101,61 @@ object RLord extends Serializable {
       ).routeLength
     }
 
-    val resultRoute: PartialRoute = S.reduce((pr1, pr2) => {
+    val resultRoute: PartialRoute = S.map(pr => PartialRoute(startPoint, pr)).reduce((pr1, pr2) => {
       if (pr1.routeLength > pr2.routeLength) pr2
       else pr1
     }
     )
-
     println(resultRoute.vertexList.toString)
+    println(resultRoute.routeLength)
+  }
 
+  def MBRForQ2(startPoint: Coordinate, SArray: Array[PartialRoute], Tc: Double): MBR = {
+    var result: MBR = null
+    val iter = SArray.iterator
+    while (iter.hasNext) {
+      val p = startPoint
+      val partialRoute = iter.next()
+      val q = partialRoute.vertexList.head.coordinate
+      val a = (Tc - partialRoute.routeLength) / 2
+      val c = p.distanceWithOtherCoordinate(q) / 2
+      val center = Coordinate((p.x + q.x) / 2, (p.y +q.y) / 2)
+      if ( a > c) {
+        val b = math.sqrt(a * a - c * c)
+        if (p.x == q.x) {
+          if (result == null) result = MBR(Coordinate(-b, -a), Coordinate(b, a))
+          else result = result.extendMBRWithCoordinate(Coordinate(-b, -a))
+            .extendMBRWithCoordinate(Coordinate(b, a))
+        }
+        else if (p.y == q.y) {
+          if (result == null) result = MBR(Coordinate(-a, -b), Coordinate(a, b))
+          else result = result.extendMBRWithCoordinate(Coordinate(-a, -b))
+            .extendMBRWithCoordinate(Coordinate(a, b))
+        }
+        else {
+          val slope = (p.y - q.y) / (p.x - q.x)
+          val sintheta = math.sqrt(slope * slope / (1 + slope * slope))
+          val costheta = sintheta / slope
+          val x1 = -math.sqrt(1 / (b * b + a * a * slope * slope)) * slope * a * a
+          val y1 = b * b * math.sqrt(1 / (b * b + a * a * slope * slope))
+          val newy = (x1 - center.x) * sintheta + (y1 - center.y) * costheta + center.y
+          val newyy = (-x1 - center.x) * sintheta + (-y1 - center.y) * costheta + center.y
+
+          val slope2 = -1 / slope
+          val sintheta2 = math.sqrt(slope2 * slope2 / (1 + slope2 * slope2))
+          val costheta2 = sintheta2 / slope2
+          val x2 = -math.sqrt(1 / (b * b + a * a * slope2 * slope2)) * slope2 * a * a
+          val y2 = b * b * math.sqrt(1 / (b * b + a * a * slope2 * slope2))
+          val newx = (x2 - center.x) * costheta - (y2 - center.y) * sintheta + center.x
+          val newxx = (-x2 - center.x) * costheta - (-y2 - center.y) * sintheta + center.x
+
+          result = result.extendMBRWithCoordinate(Coordinate(newx, newy))
+            .extendMBRWithCoordinate(Coordinate(newx, newyy))
+            .extendMBRWithCoordinate(Coordinate(newxx, newy))
+            .extendMBRWithCoordinate(Coordinate(newxx, newyy))
+        }
+      }
+    }
+    result
   }
 }

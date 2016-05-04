@@ -4,10 +4,10 @@
   * */
 package org.apache.spark.graphx.OSR
 
+import org.apache.spark.graphx.OSR.selfDefType.{Coordinate, Vertex}
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
-case class Point(x: Double, y: Double)
 case class PathRecord(distance: Double, preid: VertexId, prePathRecord: PathRecord)
 object BrutalForce {
 
@@ -19,10 +19,10 @@ object BrutalForce {
     val users = sc.textFile("graphx/data/users.txt")
       .map(line => line.split(",")).map( parts => (parts.head.toLong, parts.tail) )
     // Load my user data and parse into tuples of user id and attribute list
-    val points: RDD[(VertexId, Point)] =
+    val points: RDD[(VertexId, Coordinate)] =
       sc.textFile("graphx/data/syntheticpoints.txt")
         .map(line => line.split(","))
-        .map( parts => (parts.head.toLong, Point(parts(1).toDouble, parts(2).toDouble)) )
+        .map( parts => (parts.head.toLong, Coordinate(parts(1).toDouble, parts(2).toDouble)) )
 
     val edges: RDD[Edge[Double]] =
       sc.textFile("graphx/data/syntheticedges.txt")
@@ -32,9 +32,9 @@ object BrutalForce {
     val graph = Graph(points, edges)
       .mapTriplets(
       triplet =>
-          distanceBetweenTwoPoints(
-            triplet.srcAttr.asInstanceOf[Point],
-            triplet.dstAttr.asInstanceOf[Point]))
+            triplet.srcAttr.asInstanceOf[Coordinate]
+              .distanceWithOtherCoordinate(triplet.dstAttr.asInstanceOf[Coordinate])
+            )
         .mapVertices((id, _) => if(id == sourceId) PathRecord(0.0, id, null)
               else PathRecord(Double.PositiveInfinity, id, null))
 
@@ -61,12 +61,12 @@ object BrutalForce {
     val newsssp = sssp.
       vertices.
       filter((vertex) => {
-        if(vertex._1 % 9 == 8)  true
-      else false
+        vertex._1 % 9 == 8
       })
 
-    val result = newsssp.
-      collect().reduce((a,b) => if(a._2.distance > b._2.distance) b else a)
+    val result = newsssp
+      .reduce((a,b) => if(a._2.distance > b._2.distance) b else a)
+    println("distance: " + result._2.distance)
     println(result._1)
     var tmp = result._2
     while(tmp != null && tmp.preid > 0) {
@@ -75,12 +75,6 @@ object BrutalForce {
     }
   }
 
-  def distanceBetweenTwoPoints(p1: Point, p2: Point): Double =
-    doubleFormatter(math.sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y)))
-
-
-  def doubleFormatter(input: Double): Double = {
-    if(input * 100 >= Double.PositiveInfinity || input * 100 <= Double.NegativeInfinity) input
-    else math.round(input * 100) / 100.00
-  }
+  def distanceBetweenTwoPoints(p1: Coordinate, p2: Coordinate): Double =
+    math.sqrt((p1.x - p2.x) * (p1.x - p2.x) + (p1.y - p2.y) * (p1.y - p2.y))
 }
