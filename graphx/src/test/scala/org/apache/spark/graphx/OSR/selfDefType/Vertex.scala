@@ -4,6 +4,8 @@
   */
 package org.apache.spark.graphx.OSR.selfDefType
 
+import org.apache.spark.graphx._
+
 case class Coordinate(x: Double, y: Double) extends Serializable {
   def distanceWithOtherCoordinate(other: Coordinate): Double =
     math.sqrt(
@@ -17,5 +19,15 @@ case class Vertex(id: Long, coordinate: Coordinate, category: Int) extends Seria
     this.coordinate.distanceWithOtherCoordinate(other.coordinate)
 }
 
-case class VertexMS(id: Long, category: Int, preId: Long, distance: Int, active: Boolean)
+case class VertexMS(id: Long, category: Int, pathRecord: PathRecord[Int])
+  extends Serializable
+
+// case class MessageInMS(srcId: Long, distance: Int)  extends Serializable
+object PathRecord {
+  def apply[T](distance: T, id: VertexId, prePathRecord: PathRecord[T]): PathRecord[T] = {
+      new PathRecord[T](distance, id, prePathRecord)
+  }
+  def apply[]
+}
+class PathRecord[T](distance: T, id: VertexId, prePathRecord: PathRecord[T])
   extends Serializable

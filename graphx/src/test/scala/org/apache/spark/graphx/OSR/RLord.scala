@@ -3,7 +3,7 @@
   * Created by liuzh on 2016/3/12.
   */
 package org.apache.spark.graphx.OSR
-import org.apache.spark.graphx.OSR.selfDefType.{MBR, PartialRoute, Coordinate, Vertex}
+import org.apache.spark.graphx.OSR.selfDefType._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
 import scala.collection.mutable.ArrayBuffer
@@ -23,7 +23,7 @@ object RLord extends Serializable {
           Vertex(parts(0).toLong, Coordinate(parts(1).toDouble, parts(2).toDouble), parts(3).toInt))
 
     // Code for compute greedy distance
-    val categoryNum = 8
+    val categoryNum = OSRConfig.categoryNum
     val startPoint: Vertex =
       vertexes.filter((vertex) => vertex.category == 0).collect()(0)
     val greedyDistance: Double = {

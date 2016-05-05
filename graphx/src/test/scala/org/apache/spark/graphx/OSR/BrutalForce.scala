@@ -4,11 +4,11 @@
   * */
 package org.apache.spark.graphx.OSR
 
-import org.apache.spark.graphx.OSR.selfDefType.{Coordinate, Vertex}
+import org.apache.spark.graphx.OSR.selfDefType.{Coordinate, PathRecord}
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
-case class PathRecord(distance: Double, preid: VertexId, prePathRecord: PathRecord)
+
 object BrutalForce {
 
   def main(args: Array[String]) {
@@ -16,6 +16,7 @@ object BrutalForce {
     val sparkConf = new SparkConf().setAppName("BrutalForce").setMaster("local[4]")
     val sc = new SparkContext(sparkConf)
 
+    type DoublePathRecord = PathRecord[Double]
     val users = sc.textFile("graphx/data/users.txt")
       .map(line => line.split(",")).map( parts => (parts.head.toLong, parts.tail) )
     // Load my user data and parse into tuples of user id and attribute list
@@ -36,10 +37,9 @@ object BrutalForce {
               .distanceWithOtherCoordinate(triplet.dstAttr.asInstanceOf[Coordinate])
             )
         .mapVertices((id, _) => if(id == sourceId) PathRecord(0.0, id, null)
-              else PathRecord(Double.PositiveInfinity, id, null))
+              else PathRecord[Double](Double.PositiveInfinity, id, null))
 
-    val vs = graph.vertices.collect()
-    val sssp = graph.pregel(PathRecord(Double.PositiveInfinity, -1, null))(
+    val sssp = graph.pregel(PathRecord[Double](Double.PositiveInfinity, -1, null))(
       (id, dist, newDist) => {
         if (dist.distance < newDist.distance) dist
         else newDist
@@ -47,7 +47,8 @@ object BrutalForce {
       triplet => {
         if (triplet.srcAttr.distance + triplet.attr < triplet.dstAttr.distance) {
           Iterator((triplet.dstId,
-            PathRecord(triplet.srcAttr.distance + triplet.attr, triplet.srcId, triplet.srcAttr)))
+            PathRecord[Double](triplet.srcAttr.distance + triplet.attr,
+              triplet.srcId, triplet.srcAttr)))
         }
         else {
           Iterator.empty
@@ -70,8 +71,8 @@ object BrutalForce {
     println("distance: " + result._2.distance)
     println(result._1)
     var tmp = result._2
-    while(tmp != null && tmp.preid > 0) {
-      println(tmp.preid)
+    while(tmp != null && tmp.id > 0) {
+      println(tmp.id)
       tmp = tmp.prePathRecord
     }
   }

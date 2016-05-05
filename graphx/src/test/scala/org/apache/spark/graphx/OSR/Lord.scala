@@ -4,7 +4,7 @@
   */
 package org.apache.spark.graphx.OSR
 
-import org.apache.spark.graphx.OSR.selfDefType.{PartialRoute, Coordinate, Vertex}
+import org.apache.spark.graphx.OSR.selfDefType.{OSRConfig, PartialRoute, Coordinate, Vertex}
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkContext, SparkConf}
 
@@ -23,7 +23,7 @@ object Lord {
           Vertex(parts(0).toLong, Coordinate(parts(1).toDouble, parts(2).toDouble), parts(3).toInt))
 
     // Code for compute greedy distance
-    val categoryNum = 8
+    val categoryNum = OSRConfig.categoryNum
     val startPoint: Vertex =
       vertexes.filter((vertex) => vertex.category == 0).collect()(0)
     val greedyDistance: Double = {
