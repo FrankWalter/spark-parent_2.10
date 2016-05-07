@@ -38,38 +38,43 @@ object OSRInMS {
           )
         )
 
-    // val p = points.collect()
+    val e = edges.collect()
     val graph = Graph(points, edges)
       .mapVertices(
         (id, attr) => {
           val category = attr.asInstanceOf[Int]
           if (id == sourceId) {
-            VertexMS(id, category, PathRecord[Int](0, id, null))
+            VertexMS(id, category, PathRecord[Int](id, 0))
           }
           else VertexMS(id, category, null)
         })
 
     var sssp = graph
-    for (i <- 1 until categoryNum) {
-      sssp = sssp.pregel(PathRecord[Int](Int.MaxValue, -1, null))(
+    for (i <- 1 to categoryNum) {
+      sssp = sssp.pregel(PathRecord[Int]())(
         (id, attr, message) => {
-          if (attr.pathRecord == null || attr.pathRecord.distance > message.distance) {
+          if (message == null) {
+            attr
+          } else if (attr.pathRecord == null ||
+            attr.pathRecord.distance > message.distance) {
             attr.copy(pathRecord = message)
+          } else {
+            attr
           }
-          else  attr
         },
         triplet => {
           if (triplet.srcAttr.pathRecord == null) {
             Iterator.empty
-          } else if (triplet.dstAttr.pathRecord == null) {
+          } else if (triplet.dstAttr.pathRecord == null ||
+            triplet.srcAttr.pathRecord.distance + triplet.attr <
+              triplet.dstAttr.pathRecord.distance) {
             Iterator((triplet.dstId,
-              PathRecord[Int](triplet.srcAttr.pathRecord.distance + triplet.attr,
+              PathRecord[Int](triplet.srcAttr.pathRecord,
                 triplet.dstId,
-                distance + triplet.attr)))
-          }
-          if (triplet.srcAttr.pathRecord.distance + triplet.attr < triplet.dstAttr.pathRecord.distance) {
-            Iterator((triplet.dstId,
-              MessageInMS(triplet.srcId, triplet.srcAttr.distance + triplet.attr)))
+                triplet.srcAttr.pathRecord.distance + triplet.attr
+              )))
+          } else {
+            Iterator.empty
           }
         },
         (a, b) => {
@@ -77,27 +82,23 @@ object OSRInMS {
           else b
         }
       )
+      val tmp = sssp.vertices.collect()
       sssp = sssp.mapVertices((id, attr) => {
-        if (attr.category != i) {}
-        VertexMS(attr.id, attr.category, attr.preId, Int.MaxValue, active = false)
+        if (attr.category != i) {
+          attr.copy(pathRecord = null)
+        } else {
+          attr
+        }
       })
     }
-    //
-    //    val newsssp = sssp.
-    //      vertices.
-    //      filter((vertex) => {
-    //        vertex._1 % 9 == 8
-    //      })
-    //
-    //    val result = newsssp
-    //      .reduce((a, b) => if (a._2.distance > b._2.distance) b else a)
-    //    println("distance: " + result._2.distance)
-    //    println(result._1)
-    //    var tmp = result._2
-    //    while (tmp != null && tmp.preid > 0) {
-    //      println(tmp.preid)
-    //      tmp = tmp.prePathRecord
-    //    }
-    println("hello")
+    val result = sssp.vertices
+      .filter(vertex => {
+      vertex._2.category == categoryNum
+    })
+    val r = result.reduce((a, b) => {
+      if (a._2.pathRecord.distance < b._2.pathRecord.distance) a
+      else b
+    })
+    println(r._2.pathRecord.path.toString)
   }
 }

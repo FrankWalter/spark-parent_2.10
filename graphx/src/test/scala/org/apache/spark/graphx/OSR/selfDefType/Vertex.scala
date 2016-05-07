@@ -24,10 +24,25 @@ case class VertexMS(id: Long, category: Int, pathRecord: PathRecord[Int])
 
 // case class MessageInMS(srcId: Long, distance: Int)  extends Serializable
 object PathRecord {
-  def apply[T](distance: T, id: VertexId, prePathRecord: PathRecord[T]): PathRecord[T] = {
-      new PathRecord[T](distance, id, prePathRecord)
+  def apply[T](): PathRecord[T] = {
+    null
   }
-  def apply[]
+  def apply[T](vertexId: VertexId, iniDistance: T): PathRecord[T] = {
+    new PathRecord[T](List(vertexId), iniDistance)
+  }
+  def apply[T](path: List[VertexId], distance: T): PathRecord[T] = {
+    new PathRecord[T](path, distance)
+  }
+
+  def apply[T](prePathRecord: PathRecord[T],
+               newVertexId: VertexId,
+               newDistance: T
+               ): PathRecord[T] = {
+    new PathRecord[T](prePathRecord.path :+ newVertexId, newDistance)
+  }
 }
-class PathRecord[T](distance: T, id: VertexId, prePathRecord: PathRecord[T])
-  extends Serializable
+
+class PathRecord[T](pathPara: List[VertexId], distancePara: T) extends Serializable{
+  val path = pathPara
+  val distance = distancePara
+}

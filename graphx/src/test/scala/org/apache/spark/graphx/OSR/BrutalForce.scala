@@ -4,7 +4,7 @@
   * */
 package org.apache.spark.graphx.OSR
 
-import org.apache.spark.graphx.OSR.selfDefType.{Coordinate, PathRecord}
+import org.apache.spark.graphx.OSR.selfDefType.{OSRConfig, Coordinate, PathRecord}
 import org.apache.spark.graphx._
 import org.apache.spark.rdd.RDD
 import org.apache.spark.{SparkConf, SparkContext}
@@ -15,11 +15,8 @@ object BrutalForce {
     // Connect to the Spark cluster
     val sparkConf = new SparkConf().setAppName("BrutalForce").setMaster("local[4]")
     val sc = new SparkContext(sparkConf)
+    val categoryNum = OSRConfig.categoryNum
 
-    type DoublePathRecord = PathRecord[Double]
-    val users = sc.textFile("graphx/data/users.txt")
-      .map(line => line.split(",")).map( parts => (parts.head.toLong, parts.tail) )
-    // Load my user data and parse into tuples of user id and attribute list
     val points: RDD[(VertexId, Coordinate)] =
       sc.textFile("graphx/data/syntheticpoints.txt")
         .map(line => line.split(","))
@@ -36,21 +33,32 @@ object BrutalForce {
             triplet.srcAttr.asInstanceOf[Coordinate]
               .distanceWithOtherCoordinate(triplet.dstAttr.asInstanceOf[Coordinate])
             )
-        .mapVertices((id, _) => if(id == sourceId) PathRecord(0.0, id, null)
-              else PathRecord[Double](Double.PositiveInfinity, id, null))
+        .mapVertices((id, _) => if(id == sourceId) PathRecord[Double](id, 0)
+              else null )
 
-    val sssp = graph.pregel(PathRecord[Double](Double.PositiveInfinity, -1, null))(
-      (id, dist, newDist) => {
-        if (dist.distance < newDist.distance) dist
-        else newDist
+    val sssp = graph.pregel(PathRecord[Double]())(
+      (id, attr, message) => {
+        if (message == null) {
+          attr
+        } else if (attr == null ||
+          attr.distance > message.distance) {
+          message
+        } else {
+          attr
+        }
       },
       triplet => {
-        if (triplet.srcAttr.distance + triplet.attr < triplet.dstAttr.distance) {
+        if (triplet.srcAttr == null) {
+          Iterator.empty
+        } else if (triplet.dstAttr == null ||
+          triplet.srcAttr.distance + triplet.attr <
+            triplet.dstAttr.distance) {
           Iterator((triplet.dstId,
-            PathRecord[Double](triplet.srcAttr.distance + triplet.attr,
-              triplet.srcId, triplet.srcAttr)))
-        }
-        else {
+            PathRecord[Double](triplet.srcAttr,
+              triplet.dstId,
+              triplet.srcAttr.distance + triplet.attr
+            )))
+        } else {
           Iterator.empty
         }
       },
@@ -63,18 +71,13 @@ object BrutalForce {
     val newsssp = sssp.
       vertices.
       filter((vertex) => {
-        vertex._1 % 9 == 8
+        vertex._1 % (categoryNum + 1) == categoryNum
       })
 
     val result = newsssp
       .reduce((a,b) => if(a._2.distance > b._2.distance) b else a)
     println("distance: " + result._2.distance)
-    println(result._1)
-    var tmp = result._2
-    while(tmp != null && tmp.id > 0) {
-      println(tmp.id)
-      tmp = tmp.prePathRecord
-    }
+    println(result._2.path)
   }
 
   def distanceBetweenTwoPoints(p1: Coordinate, p2: Coordinate): Double =
